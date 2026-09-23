@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { JsonPersistenceModule } from './common/json-persistence/json-persistence.module';
 import { PlacesModule } from './places/places.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { PlacesModule } from './places/places.module';
     }),
     JsonPersistenceModule,
     PlacesModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -7,5 +7,6 @@ import { JsonPersistenceModule } from '../common/json-persistence/json-persisten
   imports: [JsonPersistenceModule],
   controllers: [PlacesController],
   providers: [PlacesService],
+  exports: [PlacesService],
 })
 export class PlacesModule {}
