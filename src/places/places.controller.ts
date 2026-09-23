@@ -1,7 +1,8 @@
-import {Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus,} from '@nestjs/common';
+import {Controller, Get, Post, Body, Patch, Param, Delete, HttpCode, HttpStatus, Query,} from '@nestjs/common';
 import { PlacesService } from './places.service';
 import { CreatePlaceDto } from './dto/create-place.dto';
 import { UpdatePlaceDto } from './dto/update-place.dto';
+import { GetPlacesFilterDto } from './dto/get-places-filter.dto';
 import { Place } from './entities/place.entity';
 
 @Controller('places')
@@ -9,8 +10,8 @@ export class PlacesController {
   constructor(private readonly placesService: PlacesService) {}
 
   @Get()
-  findAll(): Promise<Place[]> {
-    return this.placesService.findAll();
+  findAll(@Query() filterDto: GetPlacesFilterDto) {
+    return this.placesService.findAll(filterDto);
   }
 
   @Get(':id')
