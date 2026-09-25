@@ -72,9 +72,12 @@ export class PlacesService {
     const { data: places } = await this.findAll();
     const newPlace: Place = {
       id: randomUUID(),
-      ...createPlaceDto,
+      name: createPlaceDto.name,
+      description: createPlaceDto.description,
+      category: createPlaceDto.category,
+      location: createPlaceDto.location,
       createdAt: new Date().toISOString(),
-    };
+  };
 
     places.push(newPlace);
     await this.jsonPersistenceService.writeData(this.fileName, places);
@@ -89,10 +92,7 @@ export class PlacesService {
       throw new NotFoundException(`L'endroit avec l'ID "${id}" n'existe pas.`);
     }
 
-    const updatedPlace = {
-      ...places[index],
-      ...updatePlaceDto,
-    };
+    const updatedPlace: Place = Object.assign({}, places[index], updatePlaceDto);
 
     places[index] = updatedPlace;
     await this.jsonPersistenceService.writeData(this.fileName, places);

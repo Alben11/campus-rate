@@ -2,7 +2,9 @@ import {Controller, Get, Post, Body, Param, Delete, HttpCode, HttpStatus, Query,
 import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { Review } from './entities/review.entity';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('reviews')
 @Controller('reviews')
 export class ReviewsController {
   constructor(private readonly reviewsService: ReviewsService) {}

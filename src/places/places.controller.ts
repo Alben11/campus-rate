@@ -4,7 +4,9 @@ import { CreatePlaceDto } from './dto/create-place.dto';
 import { UpdatePlaceDto } from './dto/update-place.dto';
 import { GetPlacesFilterDto } from './dto/get-places-filter.dto';
 import { Place } from './entities/place.entity';
+import { ApiTags } from '@nestjs/swagger';
 
+@ApiTags('places')
 @Controller('places')
 export class PlacesController {
   constructor(private readonly placesService: PlacesService) {}

@@ -33,7 +33,10 @@ export class ReviewsService {
     const reviews = await this.findAll();
     const newReview: Review = {
       id: randomUUID(),
-      ...createReviewDto,
+      placeId: createReviewDto.placeId,
+      author: createReviewDto.author,
+      rating: createReviewDto.rating,
+      comment: createReviewDto.comment,
       createdAt: new Date().toISOString(),
     };
 
