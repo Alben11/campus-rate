@@ -1,59 +1,40 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { JsonPersistenceService } from '../common/json-persistence/json-persistence.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Review, ReviewDocument } from './schemas/review.schema';
 import { PlacesService } from '../places/places.service';
-import { Review } from './entities/review.entity';
 import { CreateReviewDto } from './dto/create-review.dto';
-import { randomUUID } from 'crypto';
 
 @Injectable()
 export class ReviewsService {
-  private readonly fileName = 'reviews.json';
-
   constructor(
-    private readonly jsonPersistenceService: JsonPersistenceService,
+    @InjectModel(Review.name) private readonly reviewModel: Model<ReviewDocument>,
     private readonly placesService: PlacesService,
   ) {}
 
   async findAll(): Promise<Review[]> {
-    return this.jsonPersistenceService.readData<Review>(this.fileName);
+    return this.reviewModel.find().exec();
   }
 
   async findByPlace(placeId: string): Promise<Review[]> {
-    // Vérifie d'abord si l'endroit existe
+    // Vérifie que le lieu existe dans MongoDB Atlas
     await this.placesService.findOne(placeId);
-    
-    const reviews = await this.findAll();
-    return reviews.filter((r) => r.placeId === placeId);
+
+    return this.reviewModel.find({ placeId }).exec();
   }
 
   async create(createReviewDto: CreateReviewDto): Promise<Review> {
-    // Vérifie que l'endroit existe avant d'ajouter l'avis
+    // Vérifie que le lieu existe avant de créer l'avis
     await this.placesService.findOne(createReviewDto.placeId);
 
-    const reviews = await this.findAll();
-    const newReview: Review = {
-      id: randomUUID(),
-      placeId: createReviewDto.placeId,
-      author: createReviewDto.author,
-      rating: createReviewDto.rating,
-      comment: createReviewDto.comment,
-      createdAt: new Date().toISOString(),
-    };
-
-    reviews.push(newReview);
-    await this.jsonPersistenceService.writeData(this.fileName, reviews);
-    return newReview;
+    const newReview = new this.reviewModel(createReviewDto);
+    return newReview.save();
   }
 
   async remove(id: string): Promise<void> {
-    const reviews = await this.findAll();
-    const index = reviews.findIndex((r) => r.id === id);
-
-    if (index === -1) {
+    const result = await this.reviewModel.findByIdAndDelete(id).exec();
+    if (!result) {
       throw new NotFoundException(`L'avis avec l'ID "${id}" n'existe pas.`);
     }
-
-    reviews.splice(index, 1);
-    await this.jsonPersistenceService.writeData(this.fileName, reviews);
   }
 }
