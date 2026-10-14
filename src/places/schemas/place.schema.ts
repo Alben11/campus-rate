@@ -5,7 +5,7 @@ export type PlaceDocument = Place & Document;
 
 @Schema({ timestamps: true })
 export class Place {
-  @Prop({ required: true })
+  @Prop({ required: true, unique: true, trim: true, index: true })
   name: string;
 
   @Prop()

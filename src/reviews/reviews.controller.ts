@@ -16,6 +16,13 @@ export class ReviewsController {
     }
   }
 
+  // (M2): Endpoint d'agrégation des statistiques ---
+  @Get('stats/:placeId')
+  @ApiOperation({ summary: 'Obtenir les statistiques agrégées des avis pour un lieu' })
+  async getStatsForPlace(@Param('placeId') placeId: string) {
+    return this.reviewsService.getStatsForPlace(placeId);
+  }
+
   @Get()
   @ApiOperation({ summary: 'Récupérer toutes les appréciations ou filtrer par lieu' })
   @ApiQuery({ name: 'placeId', required: false, description: 'ID MongoDB du lieu pour filtrer' })

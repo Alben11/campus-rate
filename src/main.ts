@@ -4,14 +4,19 @@ import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import * as express from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // (H2): Limiter la taille du corps HTTP à 1mb ---
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ limit: '1mb', extended: true }));
+
   // 1. En-têtes de sécurité HTTP avec Helmet 
   app.use(helmet());
 
-  // 2. Configuration CORS explicite 
+  // 2. Configuration CORS explicite (H4 & H5)
   app.enableCors({
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],

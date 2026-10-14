@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { Review, ReviewDocument } from './schemas/review.schema';
 import { PlacesService } from '../places/places.service';
 import { CreateReviewDto } from './dto/create-review.dto';
+import { Types } from 'mongoose';
 
 @Injectable()
 export class ReviewsService {
@@ -11,6 +12,32 @@ export class ReviewsService {
     @InjectModel(Review.name) private readonly reviewModel: Model<ReviewDocument>,
     private readonly placesService: PlacesService,
   ) {}
+
+  // (M2): Agrégation MongoDB pour calculer les statistiques d'un lieu ---
+  async getStatsForPlace(placeId: string) {
+    const stats = await this.reviewModel.aggregate([
+      {
+        $match: { placeId: new Types.ObjectId(placeId) },
+      },
+      {
+        $group: {
+          _id: '$placeId',
+          averageRating: { $avg: '$rating' },
+          totalReviews: { $sum: 1 },
+        },
+      },
+    ]);
+
+    if (!stats || stats.length === 0) {
+      return { placeId, averageRating: 0, totalReviews: 0 };
+    }
+
+    return {
+      placeId: stats[0]._id,
+      averageRating: Math.round(stats[0].averageRating * 10) / 10,
+      totalReviews: stats[0].totalReviews,
+    };
+  }
 
   async findAll(): Promise<Review[]> {
     return this.reviewModel.find().exec();

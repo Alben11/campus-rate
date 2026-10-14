@@ -5,7 +5,8 @@ export type ReviewDocument = Review & Document;
 
 @Schema({ timestamps: true })
 export class Review {
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Place' })
+  //Indexation de placeId pour optimiser la recherche des avis par lieu ---
+  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'Place', index: true})
   placeId: string;
 
   @Prop({ required: true })
