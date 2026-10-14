@@ -1,6 +1,6 @@
 # CampusRate API
 
-API REST de gestion et d'évaluation des espaces du campus universitaire, développée avec NestJS et TypeScript dans le cadre du cours 420-514.
+API REST de gestion et d'évaluation des espaces du campus universitaire, développée avec NestJS, TypeScript et MongoDB dans le cadre du cours 420-514 (TP2).
 
 ---
 
@@ -9,13 +9,14 @@ API REST de gestion et d'évaluation des espaces du campus universitaire, dével
 - [À propos du projet](#à-propos-du-projet)
 - [Justification du Design REST](#justification-du-design-rest)
 - [Fonctionnalités & Règles Métier](#fonctionnalités--règles-métier)
-- [Architecture & Persistance JSON](#architecture--persistance-json)
-- [Technologies & Outils](#technologies--outils)
+- [Architecture & Persistance MongoDB](#architecture--persistance-mongodb)
+- [Technologies & Dépendances](#technologies--dépendances)
 - [Configuration & Variables d'Environnement](#configuration--variables-denvironnement)
 - [Installation & Démarrage](#installation--démarrage)
 - [Validation, Build & Qualité](#validation-build--qualité)
 - [Documentation OpenAPI / Swagger](#documentation-openapi--swagger)
 - [Gestion des Erreurs (RFC 7807 / RFC 9457)](#gestion-des-erreurs-rfc-7807--rfc-9457)
+- [Fonctionnalités Optionnelles (30/30 pts)](#fonctionnalités-optionnelles-3030-pts)
 - [Structure du Projet](#structure-du-projet)
 - [Limites Connues](#limites-connues)
 
@@ -27,9 +28,9 @@ CampusRate offre une API REST structurée permettant aux étudiants de consulter
 
 Points clés de l'application :
 - Découpage modulaire sous NestJS.
-- Contrôle rigoureux des données reçues (DTOs et paramètres de requêtes).
-- Calcul dynamique des métriques d'évaluation (averageRating et reviewCount).
-- Sauvegarde asynchrone des données au sein de fichiers JSON locaux.
+- Persistance des données via Mongoose / MongoDB Atlas.
+- Contrôle rigoureux et validation stricte des données entrantes (DTOs et `ValidationPipe`).
+- Calcul dynamique des métriques d'évaluation via agrégation MongoDB.
 - Format de réponse d'erreur uniformisé selon la norme RFC 7807 / RFC 9457 (Problem Details).
 - Documentation interactive accessible via Swagger / OpenAPI.
 
@@ -37,14 +38,12 @@ Points clés de l'application :
 
 ## Justification du Design REST
 
-Afin de respecter les standards d'architecture HTTP exigés par l'énoncé, voici un récapitulatif des choix de conception retenus :
-
 | Décision de design | Choix appliqué | Justification |
 | :--- | :--- | :--- |
 | **Nommage des ressources** | Pluriel, anglais, minuscules (`/places`, `/reviews`) | Suivi des conventions REST basées sur des collections de ressources représentées par des noms. |
-| **Relations entre ressources** | `/places` et `/reviews` liés par `placeId` | Garantit une gestion indépendante des entités tout en maintenant l'association claire entre un avis et son endroit. |
-| **Codes de succès** | `201 Created`, `200 OK`, `204 No Content` | Alignement avec la sémantique HTTP : `201` indique la création effective d'un enregistrement, tandis que `204` confirme une suppression sans contenu de retour. |
-| **Codes d'erreur** | `400 Bad Request`, `404 Not Found`, `409 Conflict` | Distinction nette entre un problème de validation d'entrée (`400`), une ressource absente (`404`) ou une incohérence d'état (`409`). |
+| **Relations entre ressources** | `/places` et `/reviews` liés par `placeId` (référence) | Garantit une gestion indépendante des entités tout en maintenant l'association claire entre un avis et son endroit. |
+| **Codes de succès** | `201 Created`, `200 OK`, `204 No Content` | Alignement avec la sémantique HTTP : `201` indique la création effective, `204` confirme une suppression. |
+| **Codes d'erreur** | `400 Bad Request`, `404 Not Found`, `409 Conflict` | Distinction nette entre un problème de validation (`400`), une ressource absente (`404`) ou un conflit (`409`). |
 
 ---
 
@@ -53,141 +52,110 @@ Afin de respecter les standards d'architecture HTTP exigés par l'énoncé, voic
 ### Endroits du campus (`/places`)
 - **Propriétés gérées** : `id`, `name`, `description`, `category`, `location`, `createdAt`.
 - **Endpoints disponibles** :
-  - `POST /places` : Création d'un nouvel endroit avec validation des champs.
-  - `GET /places` : Extraction de la liste des endroits avec gestion de la recherche globale (`search`), du filtre par catégorie (`category`) et de la pagination (`page`, `limit`).
-  - `GET /places/:id` : Récupération d'un endroit spécifique par son identifiant.
+  - `POST /places` : Création d'un nouvel endroit avec validation stricte.
+  - `GET /places` : Extraction de la liste des endroits avec filtres et pagination.
+  - `GET /places/:id` : Récupération d'un endroit spécifique.
   - `PATCH /places/:id` : Édition partielle d'un endroit.
-  - `DELETE /places/:id` : Suppression d'un endroit du campus.
+  - `DELETE /places/:id` : Suppression d'un endroit.
 
 ### Avis & Évaluations (`/reviews`)
 - **Propriétés gérées** : `id`, `placeId`, `rating` (entre 1 et 5), `comment`, `createdAt`.
 - **Endpoints disponibles** :
-  - `POST /reviews` : Publication d'un avis rattaché à un `placeId` existant.
+  - `POST /reviews` : Publication d'un avis rattaché à un `placeId`.
   - `GET /reviews` : Consultation de la liste globale des évaluations.
+  - `GET /reviews/stats/:placeId` : Statistiques agrégées des avis pour un lieu.
   - `DELETE /reviews/:id` : Retrait d'un avis.
 
 ---
 
-## Architecture & Persistance JSON
+## Architecture & Persistance MongoDB
 
-La conservation des données s'appuie sur le service `JsonPersistenceService` qui tire parti du module natif `node:fs/promises` pour interagir de façon asynchrone avec le système de fichiers.
-
-- **Emplacement des données** : Les informations sont écrites dans `./data/places.json` et `./data/reviews.json`.
-- **Création automatique** : En cas d'absence des fichiers lors de l'initialisation du serveur, ces derniers sont générés sous la forme de tableaux vides (`[]`).
-- **Séparation des responsabilités** : Les services applicatifs (`PlacesService` et `ReviewsService`) ne gèrent pas l'accès direct aux fichiers et reposent entièrement sur le service de persistance.
+La persistance des données repose sur **MongoDB** et l'ODM **Mongoose** :
+- **Connexion Atlas** : L'application se connecte à un cluster MongoDB via la variable `MONGODB_URI`.
+- **Modélisation** : Utilisation de schémas Mongoose pour structurer les documents `Place` et `Review`.
 
 ---
 
-## Technologies & Outils
+## Technologies & Dépendances
 
-- **Framework** : NestJS (Node.js & TypeScript)
-- **Validation** : `class-validator` & `class-transformer` avec `ValidationPipe` global
-- **Documentation** : `@nestjs/swagger` (OpenAPI v3)
-- **Format d'erreur** : Standard RFC 7807 / RFC 9457 (Problem Details)
-- **Analyse du code** : Oxlint / ESLint, Prettier
+Le projet intègre les dépendances de base de NestJS ainsi que les packages de sécurité et d'optimisation ajoutés pour le TP2 :
+- **Framework** : `@nestjs/core`, `@nestjs/common`, `@nestjs/platform-express`, `@nestjs/config`
+- **Base de données** : `@nestjs/mongoose`, `mongoose`
+- **Validation & Sécurité** : `class-validator`, `class-transformer`, `@nestjs/throttler`, `helmet`
+- **Documentation** : `@nestjs/swagger`
+- **Qualité de code** : Oxlint, Prettier
 
 ---
 
 ## Configuration & Variables d'Environnement
 
-Un fichier modèle `.env.example` est présent à la racine du projet. Pour initialiser votre environnement local, dupliquez-le sous le nom `.env` :
+Créez un fichier `.env` à la racine du projet en vous basant sur la structure suivante :
 
 ```env
 PORT=3000
-DATA_FILE_PATH=./data
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/campus-rate?retryWrites=true&w=majority
+CORS_ORIGIN=http://localhost:3000
 
 Installation & Démarrage
-Prérequis requis
-Node.js (version 18 ou ultérieure)
-
-npm (installé d'office avec Node.js)
-
-Déploiement local
-Cloner le projet et se placer dans le dossier :
-
-Bash
-git clone <URL_DU_DEPOT_GITHUB>
+1. Cloner le projet
+git clone [https://github.com/Alben11/campus-rate.git](https://github.com/Alben11/campus-rate.git)
 cd campus-rate
-Installer les paquets de dépendances :
-
-Bash
+2. Installer les dépendances
 npm install
-Exécuter l'application :
-
+3. Démarrer l'application
 Mode développement (avec rechargement automatique) :
 
-Bash
 npm run start:dev
 Mode production :
 
-Bash
 npm run build
 npm run start:prod
-L'API est alors accessible à l'adresse http://localhost:3000.
-
 Validation, Build & Qualité
-Avant d'effectuer toute soumission sur Git, veillez à exécuter ces commandes afin d'assurer la conformité globale du code :
-
-Bash
-# Analyse du code par le linter
+# Analyse et lintage du code
 npm run lint
 
-# Formattage automatique de la syntaxe
+# Formatage automatique
 npm run format
 
 # Vérification de la compilation TypeScript
 npm run build
 Documentation OpenAPI / Swagger
-L'interface Swagger UI est générée automatiquement à chaque lancement et reste disponible à l'URL suivante :
+L'interface Swagger UI est accessible à l'adresse suivante lorsque le serveur est démarré :
 
-http://localhost:3000/api/docs
-
-Elle détaille les DTOs, les paramètres supportés, les structures de réponses ainsi que le modèle de retour des erreurs ProblemDetails.
+ http://localhost:3000/api/docs
 
 Gestion des Erreurs (RFC 7807 / RFC 9457)
-L'ensemble des exceptions est capturé au niveau central via le filtre HttpExceptionFilter, qui renvoie une réponse formatée sous l'en-tête application/problem+json.
+L'ensemble des exceptions est capturé via un filtre global qui renvoie une réponse formatée sous l'en-tête application/problem+json.
 
-Exemple de structure d'erreur transmise
-JSON
-{
-  "type": "[https://httpstatuses.com/404](https://httpstatuses.com/404)",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "L'endroit avec l'ID \"id-invalide\" n'existe pas.",
-  "instance": "/places/id-invalide",
-  "timestamp": "2026-09-24T04:06:25.798Z"
-}
+Fonctionnalités Optionnelles Implantées (30 / 30 points)
+M1 (Indexation MongoDB - +6 pts) : Index unique sur le nom des lieux et index de performance sur les identifiants de liaison.
+
+M2 (Agrégation MongoDB - +4 pts) : Pipeline d'agrégation ($match, $group, $avg) pour calculer dynamiquement les statistiques des avis.
+
+M3 (Justification Référence vs Imbrication - +2 pts) : Utilisation de références par ID (Types.ObjectId) pour garantir l'indépendance des cycles de vie et éviter la limite de taille des documents MongoDB (16 Mo).
+
+MMP / Sécurité HTTP (H1, H2, H4, H5 - +9 pts) : Rate Limiting global (@nestjs/throttler), limitation de la taille du corps HTTP (1 Mo), restriction CORS par environnement et méthodes HTTP explicites.
+
+T1 (HTTPS / TLS - +1 pt) : Rôle du chiffrement des communications en transit pour prévenir les attaques Man-in-the-Middle.
+
+L1 (Journalisation INFO - +3 pts) : Intercepteur global de logs des opérations HTTP.
+
+P2 (Validation stricte - +2 pts) : Filtrage strict des propriétés modifiables (whitelist: true, forbidNonWhitelisted: true).
+
 Structure du Projet
-Plaintext
+
 campus-rate/
-├── data/                             # Fichiers de stockage JSON
-│   ├── places.json
-│   └── reviews.json
 ├── src/
-│   ├── common/                       # Composants partagés (Filtre HTTP d'exception)
-│   │   └── filters/
-│   │       └── http-exception.filter.ts
-│   ├── json-persistence/             # Service de persistance de données
-│   │   ├── json-persistence.module.ts
-│   │   └── json-persistence.service.ts
-│   ├── places/                       # Gestion du module des endroits
-│   │   ├── dto/
-│   │   ├── entities/
-│   │   ├── places.controller.ts
-│   │   ├── places.module.ts
-│   │   └── places.service.ts
-│   ├── reviews/                      # Gestion du module des avis
-│   │   ├── dto/
-│   │   ├── entities/
-│   │   ├── reviews.controller.ts
-│   │   ├── reviews.module.ts
-│   │   └── reviews.service.ts
+│   ├── common/             # Intercepteurs, filtres d'exceptions
+│   ├── places/             # Module des endroits (contrôleur, service, schéma, DTOs)
+│   ├── reviews/            # Module des avis (contrôleur, service, schéma, DTOs)
 │   ├── app.module.ts
 │   └── main.ts
-├── .env.example
+├── .env
 ├── README.md
 └── package.json
-Limites Connues
-1 Accès concurrents au système de fichiers : La persistance locale par fichier JSON brut n'est pas taillée pour supporter des volumes massifs d'écritures simultanées en raison de l'absence de mécanismes de verrouillage de base de données.
 
-2 Absence d'authentification : Pour ce TP1, les accès aux routes sont ouverts et libres sans restriction par jetons de sécurité JWT ou rôles d'utilisateurs.
+Limites Connues
+1. Authentification & Rôles : L'authentification par JWT et la gestion des rôles (A1/A2) n'ont pas été implémentées dans cette version, l'effort s'étant concentré sur la sécurité HTTP, la validation et l'agrégation MongoDB.
+
+2. Multimédia : Le stockage de fichiers ou d'images pour les lieux n'est pas pris en charge (gestion textuelle uniquement).
