@@ -1,7 +1,7 @@
-import { IsInt, IsNotEmpty, IsString, IsUUID, Max, Min } from 'class-validator';
+import { IsInt, IsNotEmpty, IsString, IsMongoId, Max, Min } from 'class-validator';
 
 export class CreateReviewDto {
-  @IsUUID()
+ @IsMongoId()
   @IsNotEmpty()
   placeId: string;
 

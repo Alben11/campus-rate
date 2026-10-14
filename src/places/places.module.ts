@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { PlacesController } from './places.controller';
 import { PlacesService } from './places.service';
-import { JsonPersistenceModule } from '../common/json-persistence/json-persistence.module';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Place, PlaceSchema } from './schemas/place.schema';
 
 @Module({
-  imports: [JsonPersistenceModule],
+  imports: [MongooseModule.forFeature([{ name: Place.name, schema: PlaceSchema }]),],
   controllers: [PlacesController],
   providers: [PlacesService],
-  exports: [PlacesService],
+  exports: [PlacesService, MongooseModule],
 })
 export class PlacesModule {}
